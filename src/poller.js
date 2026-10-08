@@ -60,9 +60,14 @@ async function pollMerchant(install) {
     if (!install.driver99_id) continue; // modo legado ainda sem o id do entregador 99
     const is99 = order.driver_id && order.driver_id === install.driver99_id;
 
-    // Depois de falha/recusa, a loja trocou o entregador: libera nova tentativa
-    if (!is99 && job && ['failed', 'rejected'].includes(job.status) && !job.rearm) {
-      db.jobs.update(job.id, { rearm: 1 });
+    // Depois de falha/recusa, libera nova tentativa quando a loja mexe no pedido:
+    // troca o entregador, ou altera o pedido (ex.: marca o pagamento como pago)
+    if (job && ['failed', 'rejected'].includes(job.status) && !job.rearm) {
+      const touched = Date.parse(order.updated_at) > job.updated_at + 1000;
+      if (!is99 || touched) {
+        db.jobs.update(job.id, { rearm: 1 });
+        job.rearm = 1;
+      }
     }
 
     if (is99 && (!job || jobs.canStartAfter(install, job)) && !config.n99Ready()) {

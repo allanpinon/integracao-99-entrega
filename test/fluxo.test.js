@@ -114,7 +114,7 @@ test.after(() => { appServer.close(); cwServer.close(); n99Server.close(); });
 
 function order(id, extra = {}) {
   const o = {
-    id, display_id: 22000 + id, merchant_id: extra.merchant_id || 1, status: 'confirmed', order_type: 'delivery', delivered_by: 'merchant',
+    id, display_id: 22000 + id, merchant_id: extra.merchant_id || 1, updated_at: new Date(Date.now() - 60000).toISOString(), status: 'confirmed', order_type: 'delivery', delivered_by: 'merchant',
     driver_id: null, driver_fee: null, delivery_fee: 7, observation: null,
     customer: { id: 1, name: 'Allan Pinon', phone: '11933393344', ddi: '55' },
     delivery_address: { street: 'Rua Coronel Francisco Inácio', number: '43', neighborhood: 'Vila Moinho Velho', complement: '', reference: 'Portão azul', postal_code: '04286000', city: 'São Paulo', state: 'SP', latitude: '-23.6040', longitude: '-46.6000' },
@@ -303,4 +303,21 @@ test('sem credenciais da 99: não chama corrida', async () => {
   config.n99.clientId = saved;
   await poller.pollAll();
   assert.equal(db.jobs.latestForOrder(1, 201).status, 'finding');
+});
+
+test('legado: recusado por pagamento, loja marca como pago → nova tentativa sem trocar entregador', async () => {
+  order(103, { merchant_id: 2, driver_id: 55, payments: [{ total: 30, payment_type: 'offline', payment_method: 'pix', status: 'pending' }] });
+  await poller.pollAll();
+  assert.equal(db.jobs.latestForOrder(2, 103).status, 'rejected');
+  await poller.pollAll();
+  assert.equal(db.jobs.latestForOrder(2, 103).attempt, 1, 'sem alteração no pedido, não repete');
+  await new Promise((r) => setTimeout(r, 1100));
+  const o = cwOrders.get(103);
+  o.payments[0].status = 'paid';
+  o.updated_at = new Date(Date.now() + 2000).toISOString();
+  await poller.pollAll(); // libera
+  await poller.pollAll(); // tenta
+  const retry = db.jobs.latestForOrder(2, 103);
+  assert.equal(retry.attempt, 2);
+  assert.equal(retry.status, 'finding');
 });
