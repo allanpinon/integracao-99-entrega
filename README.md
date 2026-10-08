@@ -21,6 +21,27 @@ O link de rastreio ao cliente é enviado pela própria 99.
 - endereço incompleto ou CEP não encontrado (busca no ViaCEP quando o CW não envia);
 - pagamento na entrega ainda não marcado como **pago** no CW (desligável com `ALLOW_UNPAID_OFFLINE=true`).
 
+## Modo token legado (ponte até o app privado)
+
+Funciona com o token da tela **Configurações → Integrações → API de integração** do Portal, sem app OAuth.
+
+| | Modo app privado | Modo token legado |
+|---|---|---|
+| Chamar motoboy ao atribuir "99 Entrega" | Sim | Sim |
+| Saiu para entrega / Entregue no CW | Sim | Sim |
+| Taxa da 99 no campo do CW | Sim | Não (aparece no painel) |
+| Sem motoboy → "Sem entregador" | Automático | Não: o pedido fica com "99 Entrega"; a loja vê no painel e troca o entregador |
+| Nova tentativa | Atribuir de novo | Trocar para outro entregador e voltar para "99 Entrega" |
+
+Configuração:
+1. Railway: `CW_ENV=production` e `CW_LEGACY_STORES=12493:TOKEN:` (código da loja e token da tela do Portal).
+2. Abrir `{BASE_URL}/painel?token={PAINEL_TOKEN}`, atribuir "99 Entrega" a um pedido de delivery em preparo e anotar o **id** que aparece no aviso.
+3. Completar `CW_LEGACY_STORES=12493:TOKEN:ID`. A partir daí, cada atribuição chama o motoboy.
+
+Quando o app privado for aprovado, basta instalar pelo `/cw/install`: a loja passa sozinha para o modo completo.
+
+**Painel da loja:** `{BASE_URL}/painel?token={PAINEL_TOKEN}` mostra as corridas (status, taxa, distância e motivo de falha) e atualiza a cada 15 s.
+
 ## Pré-requisitos
 
 1. **App privado no Cardápio Web** (integracao@cardapioweb.com), categoria Logística, escopos `orders` e `drivers`:

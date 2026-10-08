@@ -14,6 +14,11 @@ async function withLock(key, fn) {
   try { return await fn(); } finally { locks.delete(key); }
 }
 
+// Texto do que acontece no CW após uma falha, conforme o modo da loja
+const afterFail = (merchantId) => (cw.isLegacy(merchantId)
+  ? 'Troque o entregador no CW para tentar de novo ou usar outro motoboy.'
+  : 'Pedido voltou para "Sem entregador" no CW.');
+
 const cents = (v) => (v == null ? null : Math.round(Number(v)));
 const reais = (c) => Math.round(c) / 100;
 
@@ -21,12 +26,22 @@ async function safe(label, fn) {
   try { return await fn(); } catch (e) { log.warn('jobs', `${label}: ${e.message}`); return undefined; }
 }
 
+// Uma nova corrida só começa se a anterior terminou. Depois de falha ou recusa,
+// no modo legado (o serviço não consegue tirar o entregador do pedido) é preciso
+// que a loja troque o entregador e escolha "99 Entrega" de novo (rearm).
+function canStartAfter(install, latest) {
+  if (!TERMINAL.includes(latest.status)) return false;
+  if (latest.status === 'done') return false;
+  if (latest.status === 'canceled') return true;
+  return !cw.isLegacy(install.merchant_id) || latest.rearm === 1;
+}
+
 // ---------- Início: loja atribuiu "99 Entrega" ----------
 
 async function start(install, order) {
   return withLock(`${install.merchant_id}:${order.id}`, async () => {
     const latest = db.jobs.latestForOrder(install.merchant_id, order.id);
-    if (latest && !TERMINAL.includes(latest.status)) return latest;
+    if (latest && !canStartAfter(install, latest)) return latest;
     const attempt = (latest?.attempt || 0) + 1;
     const job = db.jobs.create({
       merchant_id: install.merchant_id,
@@ -41,7 +56,7 @@ async function start(install, order) {
     const check = rules.checkOrder(order);
     if (!check.ok) {
       db.jobs.update(job.id, { status: 'rejected', error: check.reason });
-      log.warn('jobs', `${tag} recusado: ${check.reason}. Entregador removido no CW.`);
+      log.warn('jobs', `${tag} recusado: ${check.reason}. ${afterFail(install.merchant_id)}`);
       await safe(`${tag} remover entregador`, () => cw.removeDriver(install.merchant_id, order.id));
       return db.jobs.byId(job.id);
     }
@@ -102,7 +117,7 @@ async function start(install, order) {
         return db.jobs.byId(job.id);
       }
       db.jobs.update(job.id, { status: 'failed', error: e.message });
-      log.warn('jobs', `${tag} não criado: ${e.message}. Entregador removido no CW.`);
+      log.warn('jobs', `${tag} não criado: ${e.message}. ${afterFail(install.merchant_id)}`);
       await safe(`${tag} remover entregador`, () => cw.removeDriver(install.merchant_id, order.id));
     }
     return db.jobs.byId(job.id);
@@ -201,7 +216,7 @@ async function sync(job) {
       case 'closed':
         Object.assign(patch, { status: 'failed', error: d.status === 'closed' ? 'nenhum motoboy aceitou / encerrada pela 99' : 'cancelada pela 99' });
         await safe(`${j.external_id} remover entregador`, () => cw.removeDriver(j.merchant_id, j.cw_order_id));
-        log.warn('jobs', `${j.external_id}: ${patch.error}. Pedido voltou para "Sem entregador" no CW.`);
+        log.warn('jobs', `${j.external_id}: ${patch.error}. ${afterFail(j.merchant_id)}`);
         break;
 
       default:
@@ -240,8 +255,8 @@ async function giveUp(job, why) {
       n99.cancel({ externalId: j.external_id, reasonId: n99.CANCEL_REASON.NO_COURIER }));
     db.jobs.update(j.id, { status: 'failed', error: why });
     await safe(`${j.external_id} remover entregador`, () => cw.removeDriver(j.merchant_id, j.cw_order_id));
-    log.warn('jobs', `${j.external_id}: ${why}. Pedido voltou para "Sem entregador" no CW.`);
+    log.warn('jobs', `${j.external_id}: ${why}. ${afterFail(j.merchant_id)}`);
   });
 }
 
-module.exports = { start, cancelByStore, sync, giveUp, handleWebhook, TERMINAL };
+module.exports = { canStartAfter, start, cancelByStore, sync, giveUp, handleWebhook, TERMINAL };

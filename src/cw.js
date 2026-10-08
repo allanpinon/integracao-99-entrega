@@ -79,8 +79,18 @@ async function tokenFor(merchantId) {
   return inst.access_token;
 }
 
+const isLegacy = (merchantId) => db.installs.byId(merchantId)?.auth_mode === 'legacy';
+
 // Chamada autenticada com 1 nova tentativa em 401 (token revogado/expirado)
 async function api(merchantId, path, opts = {}) {
+  if (isLegacy(merchantId)) {
+    const key = config.legacyKey(merchantId);
+    if (!key) throw new Error(`Loja ${merchantId} sem token em CW_LEGACY_STORES`);
+    return request(`${config.cw.apiBase}/api/partner/v1${path}`, {
+      ...opts,
+      headers: { ...(opts.headers || {}), 'X-API-KEY': key },
+    });
+  }
   const call = async () => request(`${config.cw.apiBase}/api/partner/v1${path}`, {
     ...opts,
     headers: { ...(opts.headers || {}), Authorization: `Bearer ${await tokenFor(merchantId)}` },
@@ -118,14 +128,19 @@ const listActive = (merchantId) => {
 
 const getOrder = (merchantId, orderId) => api(merchantId, `/orders/${orderId}`);
 
-const setDriver = (merchantId, orderId, driverId, feeReais) =>
-  api(merchantId, `/orders/${orderId}/driver`, {
+// Gestão de entregador exige OAuth: no modo legado essas chamadas não são feitas
+const setDriver = async (merchantId, orderId, driverId, feeReais) => {
+  if (isLegacy(merchantId)) return null;
+  return api(merchantId, `/orders/${orderId}/driver`, {
     method: 'PUT',
     json: feeReais === undefined ? { driver_id: driverId } : { driver_id: driverId, driver_fee: feeReais },
   });
+};
 
-const removeDriver = (merchantId, orderId) =>
-  api(merchantId, `/orders/${orderId}/driver`, { method: 'DELETE' });
+const removeDriver = async (merchantId, orderId) => {
+  if (isLegacy(merchantId)) return null;
+  return api(merchantId, `/orders/${orderId}/driver`, { method: 'DELETE' });
+};
 
 const prepared = (merchantId, orderId) => api(merchantId, `/orders/${orderId}/prepared`, { method: 'POST' });
 const dispatch = (merchantId, orderId) => api(merchantId, `/orders/${orderId}/dispatch`, { method: 'POST' });
@@ -149,7 +164,7 @@ async function ensureDelivered(merchantId, orderId) {
 }
 
 module.exports = {
-  buildAuthorizeUrl, exchangeCode, refresh, resolveDriver99,
+  isLegacy, buildAuthorizeUrl, exchangeCode, refresh, resolveDriver99,
   listActive, getOrder, setDriver, removeDriver, prepared, dispatch, delivered,
   ensureReleased, ensureDelivered,
 };

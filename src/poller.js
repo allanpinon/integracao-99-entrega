@@ -6,9 +6,19 @@ const log = require('./log');
 
 const ACTIVE_FOR_CANCEL = ['creating', 'finding', 'waiting'];
 
+// Entregadores vistos em pedidos ativos (ajuda a descobrir o id do "99 Entrega" no modo legado)
+const driversSeen = new Map(); // merchantId -> Map(driverId -> { display_id, at })
+
+function noteDriver(merchantId, order) {
+  if (!order.driver_id) return;
+  if (!driversSeen.has(merchantId)) driversSeen.set(merchantId, new Map());
+  driversSeen.get(merchantId).set(order.driver_id, { display_id: order.display_id, at: Date.now() });
+}
+
 // Um ciclo de leitura do CW para uma loja
 async function pollMerchant(install) {
-  if (!install.driver99_id) {
+  const legacy = cw.isLegacy(install.merchant_id);
+  if (!install.driver99_id && !legacy) {
     try {
       install.driver99_id = await cw.resolveDriver99(install.merchant_id);
       log.info('poller', `Loja ${install.name}: entregador "${config.cw.driverName}" = id ${install.driver99_id}`);
@@ -39,9 +49,16 @@ async function pollMerchant(install) {
       continue;
     }
     seen.add(order.id);
+    noteDriver(install.merchant_id, order);
+    if (!install.driver99_id) continue; // modo legado ainda sem o id do entregador 99
     const is99 = order.driver_id && order.driver_id === install.driver99_id;
 
-    if (is99 && !jobActive) {
+    // Depois de falha/recusa, a loja trocou o entregador: libera nova tentativa
+    if (!is99 && job && ['failed', 'rejected'].includes(job.status) && !job.rearm) {
+      db.jobs.update(job.id, { rearm: 1 });
+    }
+
+    if (is99 && (!job || jobs.canStartAfter(install, job))) {
       log.info('poller', `Pedido #${order.display_id}: "${config.cw.driverName}" atribuído. Chamando motoboy.`);
       await jobs.start(install, order);
     } else if (!is99 && jobActive && ACTIVE_FOR_CANCEL.includes(job.status)) {
@@ -99,4 +116,4 @@ function startLoops() {
   ];
 }
 
-module.exports = { pollMerchant, pollAll, reconcileAll, startLoops };
+module.exports = { driversSeen, pollMerchant, pollAll, reconcileAll, startLoops };

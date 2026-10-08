@@ -55,6 +55,13 @@ function open(file) {
       created_at INTEGER NOT NULL
     );
   `);
+  // Migrações simples (colunas novas)
+  for (const sql of [
+    `ALTER TABLE installs ADD COLUMN auth_mode TEXT NOT NULL DEFAULT 'oauth'`,
+    `ALTER TABLE jobs ADD COLUMN rearm INTEGER NOT NULL DEFAULT 0`,
+  ]) {
+    try { db.exec(sql); } catch { /* coluna já existe */ }
+  }
   return db;
 }
 
@@ -71,10 +78,11 @@ const ACTIVE = ['creating', 'finding', 'waiting', 'delivering', 'sendback'];
 const installs = {
   upsert(i) {
     get().prepare(`
-      INSERT INTO installs (merchant_id, name, access_token, refresh_token, expires_at, driver99_id, active, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+      INSERT INTO installs (merchant_id, name, access_token, refresh_token, expires_at, driver99_id, active, auth_mode, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, 1, 'oauth', ?)
       ON CONFLICT(merchant_id) DO UPDATE SET
         name = excluded.name,
+        auth_mode = 'oauth',
         access_token = excluded.access_token,
         refresh_token = COALESCE(excluded.refresh_token, installs.refresh_token),
         expires_at = excluded.expires_at,
@@ -83,6 +91,20 @@ const installs = {
         updated_at = excluded.updated_at
     `).run(i.merchant_id, i.name ?? null, i.access_token, i.refresh_token ?? null,
       i.expires_at, i.driver99_id ?? null, now());
+  },
+  upsertLegacy({ merchant_id, driver99_id }) {
+    get().prepare(`
+      INSERT INTO installs (merchant_id, name, access_token, refresh_token, expires_at, driver99_id, active, auth_mode, updated_at)
+      VALUES (?, ?, '', NULL, 0, ?, 1, 'legacy', ?)
+      ON CONFLICT(merchant_id) DO UPDATE SET
+        driver99_id = COALESCE(excluded.driver99_id, installs.driver99_id),
+        active = 1,
+        auth_mode = CASE WHEN installs.access_token = '' THEN 'legacy' ELSE installs.auth_mode END,
+        updated_at = excluded.updated_at
+    `).run(merchant_id, `Loja ${merchant_id}`, driver99_id ?? null, now());
+  },
+  setName(merchantId, name) {
+    get().prepare(`UPDATE installs SET name=? WHERE merchant_id=?`).run(name, merchantId);
   },
   updateTokens(merchantId, t) {
     get().prepare(`UPDATE installs SET access_token=?, refresh_token=COALESCE(?, refresh_token), expires_at=?, updated_at=? WHERE merchant_id=?`)

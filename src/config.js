@@ -13,6 +13,7 @@ const config = {
   baseUrl: (env.BASE_URL || `http://localhost:${env.PORT || 3000}`).replace(/\/$/, ''),
   dataDir: env.DATA_DIR || './data',
   adminToken: env.ADMIN_TOKEN || '',
+  painelToken: env.PAINEL_TOKEN || '',
 
   cw: {
     apiBase: env.CW_API_BASE || (cwEnv === 'production'
@@ -61,6 +62,19 @@ const config = {
     allowUnpaidOffline: (env.ALLOW_UNPAID_OFFLINE || 'false') === 'true',
   },
 };
+
+// Lojas no modo token legado (API Key do Portal), sem app OAuth.
+// Formato: "codigoLoja:token:idEntregador99,codigoLoja2:token2:idEntregador99"
+// O id do entregador pode ficar vazio no início ("12493:token:"); o painel ajuda a descobrir.
+config.legacyStores = (env.CW_LEGACY_STORES || '')
+  .split(',').map((s) => s.trim()).filter(Boolean)
+  .map((s) => {
+    const [merchantId, apiKey, driverId] = s.split(':').map((x) => (x || '').trim());
+    return { merchantId: Number(merchantId), apiKey, driverId: driverId ? Number(driverId) : null };
+  })
+  .filter((s) => s.merchantId && s.apiKey);
+
+config.legacyKey = (merchantId) => config.legacyStores.find((s) => s.merchantId === Number(merchantId))?.apiKey;
 
 config.req = req;
 module.exports = config;
