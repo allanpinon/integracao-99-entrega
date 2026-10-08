@@ -8,6 +8,7 @@ const ACTIVE_FOR_CANCEL = ['creating', 'finding', 'waiting'];
 
 // Entregadores vistos em pedidos ativos (ajuda a descobrir o id do "99 Entrega" no modo legado)
 const driversSeen = new Map(); // merchantId -> Map(driverId -> { display_id, at })
+const lastPoll = new Map();    // merchantId -> resumo do último ciclo (diagnóstico)
 
 function noteDriver(merchantId, order) {
   if (!order.driver_id) return;
@@ -30,6 +31,8 @@ async function pollMerchant(install) {
 
   const list = await cw.listActive(install.merchant_id);
   const delivery = (list || []).filter((o) => o.order_type === 'delivery');
+  const summary = { at: new Date().toISOString(), listed: (list || []).length, delivery: delivery.length, orders: [] };
+  lastPoll.set(install.merchant_id, summary);
   const seen = new Set();
   let calls = 0;
 
@@ -50,6 +53,8 @@ async function pollMerchant(install) {
     }
     seen.add(order.id);
     noteDriver(install.merchant_id, order);
+    summary.orders.push({ id: order.id, display_id: order.display_id, status: order.status,
+      driver_id: order.driver_id ?? null, delivered_by: order.delivered_by ?? null });
     if (!install.driver99_id) continue; // modo legado ainda sem o id do entregador 99
     const is99 = order.driver_id && order.driver_id === install.driver99_id;
 
@@ -116,4 +121,4 @@ function startLoops() {
   ];
 }
 
-module.exports = { driversSeen, pollMerchant, pollAll, reconcileAll, startLoops };
+module.exports = { lastPoll, driversSeen, pollMerchant, pollAll, reconcileAll, startLoops };
