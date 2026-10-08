@@ -9,6 +9,7 @@ const ACTIVE_FOR_CANCEL = ['creating', 'finding', 'waiting'];
 // Entregadores vistos em pedidos ativos (ajuda a descobrir o id do "99 Entrega" no modo legado)
 const driversSeen = new Map(); // merchantId -> Map(driverId -> { display_id, at })
 const lastDiag = new Map();
+const warnedNoCreds = new Set();
 const lastPoll = new Map();    // merchantId -> resumo do último ciclo (diagnóstico)
 
 function noteDriver(merchantId, order) {
@@ -64,7 +65,12 @@ async function pollMerchant(install) {
       db.jobs.update(job.id, { rearm: 1 });
     }
 
-    if (is99 && (!job || jobs.canStartAfter(install, job))) {
+    if (is99 && (!job || jobs.canStartAfter(install, job)) && !config.n99Ready()) {
+      if (!warnedNoCreds.has(order.id)) {
+        warnedNoCreds.add(order.id);
+        log.warn('poller', `Pedido #${order.display_id} com "${config.cw.driverName}", mas as credenciais da 99 não estão configuradas. Nada foi chamado.`);
+      }
+    } else if (is99 && (!job || jobs.canStartAfter(install, job))) {
       log.info('poller', `Pedido #${order.display_id}: "${config.cw.driverName}" atribuído. Chamando motoboy.`);
       await jobs.start(install, order);
     } else if (!is99 && jobActive && ACTIVE_FOR_CANCEL.includes(job.status)) {

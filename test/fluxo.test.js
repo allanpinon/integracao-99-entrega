@@ -94,6 +94,8 @@ test.before(async () => {
   process.env.CW_API_BASE = `http://127.0.0.1:${cwPort}`;
   process.env.N99_API_BASE = `http://127.0.0.1:${n99Port}`;
   process.env.N99_WEBHOOK_KEY = WEBHOOK_KEY;
+  process.env.N99_CLIENT_ID = 'id99';
+  process.env.N99_CLIENT_SECRET = 'secret99';
   process.env.CW_CLIENT_ID = 'cw-test';
   process.env.CW_LEGACY_STORES = '2:leg:';
   db = require('../src/db');
@@ -288,4 +290,16 @@ test('legado: após falha não repete sozinho; repete quando a loja troca e volt
   const retry = db.jobs.latestForOrder(2, 102);
   assert.equal(retry.attempt, 2);
   assert.equal(retry.status, 'finding');
+});
+
+test('sem credenciais da 99: não chama corrida', async () => {
+  const config = require('../src/config');
+  const saved = config.n99.clientId;
+  config.n99.clientId = 'pendente';
+  order(201, { driver_id: 99 });
+  await poller.pollAll();
+  assert.equal(db.jobs.latestForOrder(1, 201), undefined);
+  config.n99.clientId = saved;
+  await poller.pollAll();
+  assert.equal(db.jobs.latestForOrder(1, 201).status, 'finding');
 });

@@ -74,6 +74,15 @@ config.legacyStores = (env.CW_LEGACY_STORES || '')
   })
   .filter((s) => s.merchantId && s.apiKey);
 
+// Ids do entregador "99 Entrega" por loja, em variável separada do token: "12493:237614,OUTRA:ID"
+const driverIds = Object.fromEntries((env.CW_DRIVER99_IDS || '').split(',').map((s) => s.trim()).filter(Boolean)
+  .map((s) => s.split(':').map((x) => Number(String(x).trim()))).filter(([m, d]) => m && d));
+for (const st of config.legacyStores) if (!st.driverId && driverIds[st.merchantId]) st.driverId = driverIds[st.merchantId];
+
+// Credenciais da 99 presentes? Sem elas o serviço só observa, não chama corridas.
+config.n99Ready = () => Boolean(config.n99.clientId && config.n99.clientSecret &&
+  config.n99.clientId !== 'pendente' && config.n99.clientSecret !== 'pendente');
+
 config.legacyKey = (merchantId) => config.legacyStores.find((s) => s.merchantId === Number(merchantId))?.apiKey;
 
 config.req = req;
