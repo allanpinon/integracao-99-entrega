@@ -61,6 +61,8 @@ function buildApp() {
     if (!config.adminToken || req.query.token !== config.adminToken) return res.status(401).send('unauthorized');
     res.json({
       installs: db.installs.all().map(({ access_token, refresh_token, ...rest }) => rest),
+      drivers_seen: Object.fromEntries([...poller.driversSeen.entries()].map(([m, map]) =>
+        [m, [...map.entries()].map(([id, v]) => ({ driver_id: id, display_id: v.display_id }))])),
       jobs: db.jobs.recent(Number(req.query.limit || 50)),
     });
   });
