@@ -8,6 +8,7 @@ const ACTIVE_FOR_CANCEL = ['creating', 'finding', 'waiting'];
 
 // Entregadores vistos em pedidos ativos (ajuda a descobrir o id do "99 Entrega" no modo legado)
 const driversSeen = new Map(); // merchantId -> Map(driverId -> { display_id, at })
+const lastDiag = new Map();
 const lastPoll = new Map();    // merchantId -> resumo do último ciclo (diagnóstico)
 
 function noteDriver(merchantId, order) {
@@ -68,6 +69,16 @@ async function pollMerchant(install) {
       await jobs.start(install, order);
     } else if (!is99 && jobActive && ACTIVE_FOR_CANCEL.includes(job.status)) {
       await jobs.cancelByStore(job, 'loja removeu o entregador 99 no CW');
+    }
+  }
+
+  // Diagnóstico enquanto falta o id do entregador 99: registra o que foi lido (só quando muda)
+  if (!install.driver99_id) {
+    const line = `listados=${summary.listed} delivery=${summary.delivery} ` +
+      summary.orders.map((o) => `#${o.display_id}:${o.status}:entregador=${o.driver_id}`).join(' ');
+    if (lastDiag.get(install.merchant_id) !== line) {
+      lastDiag.set(install.merchant_id, line);
+      log.info('diag', `Loja ${install.merchant_id}: ${line}`);
     }
   }
 
