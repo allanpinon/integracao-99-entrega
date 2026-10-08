@@ -99,6 +99,7 @@ function painel() {
       <td style="color:${COLOR[j.status] || 'inherit'}">${esc(STATUS_PT[j.status] || j.status)}</td>
       <td>${brl(j.final_fee_cents ?? j.quoted_fee_cents)}</td>
       <td>${j.distance_m ? `${(j.distance_m / 1000).toFixed(1).replace('.', ',')} km` : '—'}</td>
+      <td>${esc(j.n99_order_id || '—')}</td>
       <td class="m">${esc(j.error && !String(j.error).startsWith('incerto') ? j.error : '')}</td>
     </tr>`).join('');
 
@@ -121,8 +122,8 @@ function painel() {
   .wrap{overflow-x:auto}
 </style>
 <h2>Corridas 99 Entrega</h2>${setup}
-<div class="wrap"><table><tr><th>Hora</th><th>Loja</th><th>Pedido</th><th>Status</th><th>Taxa</th><th>Distância</th><th>Observação</th></tr>
-${rows || '<tr><td colspan="7">Nenhuma corrida ainda.</td></tr>'}</table></div>`;
+<div class="wrap"><table><tr><th>Hora</th><th>Loja</th><th>Pedido</th><th>Status</th><th>Taxa</th><th>Distância</th><th>Corrida 99</th><th>Observação</th></tr>
+${rows || '<tr><td colspan="8">Nenhuma corrida ainda.</td></tr>'}</table></div>`;
 }
 
 function page(title, body) {
