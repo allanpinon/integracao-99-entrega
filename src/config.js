@@ -58,6 +58,8 @@ const config = {
   },
 
   rules: {
+    // true = ao concluir a entrega na 99, o pedido vai de "Entregue" para "Finalizado" no CW
+    autoFinalize: (env.AUTO_FINALIZE || 'true') === 'true',
     // false = só despacha pedidos pagos online ou marcados como "pago" no CW
     allowUnpaidOffline: (env.ALLOW_UNPAID_OFFLINE || 'false') === 'true',
   },

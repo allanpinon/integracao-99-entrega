@@ -40,7 +40,7 @@ const cwServer = http.createServer(async (req, res) => {
     if (!action) return json(res, 200, o);
     if (action === 'driver' && req.method === 'PUT') { const b = JSON.parse(body); o.driver_id = b.driver_id; if ('driver_fee' in b) o.driver_fee = b.driver_fee; return json(res, 200, o); }
     if (action === 'driver' && req.method === 'DELETE') { o.driver_id = null; o.driver_fee = null; res.writeHead(204); return res.end(); }
-    const trans = { prepared: ['confirmed', 'ready'], dispatch: ['ready', 'released'], delivered: ['released', 'delivered'] }[action];
+    const trans = { prepared: ['confirmed', 'ready'], dispatch: ['ready', 'released'], delivered: ['released', 'delivered'], finalize: ['delivered', 'closed'] }[action];
     if (trans) {
       if (o.status !== trans[0]) return json(res, 400, { code: 4003, message: 'transição inválida' });
       o.status = trans[1]; res.writeHead(204); return res.end();
@@ -177,7 +177,8 @@ test('fluxo feliz: atribui 99 → cria corrida → taxa no CW → saída → ent
   job = db.jobs.byId(job.id);
   assert.equal(job.status, 'done');
   assert.equal(job.final_fee_cents, 1350);
-  assert.equal(cwOrders.get(1).status, 'delivered', 'CW: entregue');
+  assert.equal(cwOrders.get(1).status, 'closed', 'CW: entregue e finalizado');
+  assert.ok(calls.some((c) => c.path.endsWith('/orders/1/delivered')), 'passou por entregue');
   assert.equal(cwOrders.get(1).driver_fee, 13.5, 'taxa final atualizada');
 });
 
@@ -269,7 +270,7 @@ test('legado: chama motoboy, atualiza status e nunca tenta gravar entregador', a
   n99Orders.get(job.external_id).status = 'completed';
   await webhook('OrderCompleted', job.external_id);
   assert.equal(db.jobs.byId(job.id).status, 'done');
-  assert.equal(cwOrders.get(101).status, 'delivered');
+  assert.equal(cwOrders.get(101).status, 'closed');
   assert.equal(calls.filter((c) => c.legacy && c.path.endsWith('/driver')).length, before, 'nenhuma chamada de entregador');
 });
 

@@ -193,6 +193,9 @@ async function sync(job) {
 
       case 'completed':
         await safe(`${j.external_id} marcar entregue no CW`, () => cw.ensureDelivered(j.merchant_id, j.cw_order_id));
+        if (config.rules.autoFinalize) {
+          await safe(`${j.external_id} finalizar no CW`, () => cw.ensureFinalized(j.merchant_id, j.cw_order_id));
+        }
         Object.assign(patch, { status: 'done', final_fee_cents: finalFee });
         if (finalFee != null && finalFee !== j.quoted_fee_cents) {
           await safe(`${j.external_id} atualizar taxa final`, () =>

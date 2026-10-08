@@ -158,13 +158,23 @@ async function ensureReleased(merchantId, orderId) {
   throw new Error(`Pedido ${orderId} em status ${order.status}; não é possível marcar saída`);
 }
 
+const finalize = (merchantId, orderId) => api(merchantId, `/orders/${orderId}/finalize`, { method: 'POST' });
+
 async function ensureDelivered(merchantId, orderId) {
   const status = await ensureReleased(merchantId, orderId);
   if (status === 'released') await delivered(merchantId, orderId);
 }
 
+// Entregue → Finalizado (encerra o pedido no CW sem ação manual)
+async function ensureFinalized(merchantId, orderId) {
+  const order = await getOrder(merchantId, orderId);
+  if (order.status === 'closed') return;
+  if (order.status !== 'delivered') await ensureDelivered(merchantId, orderId);
+  await finalize(merchantId, orderId);
+}
+
 module.exports = {
   isLegacy, buildAuthorizeUrl, exchangeCode, refresh, resolveDriver99,
   listActive, getOrder, setDriver, removeDriver, prepared, dispatch, delivered,
-  ensureReleased, ensureDelivered,
+  finalize, ensureReleased, ensureDelivered, ensureFinalized,
 };
