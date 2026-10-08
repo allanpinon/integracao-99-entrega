@@ -1,0 +1,17 @@
+{
+  "name": "integracao-cw-99entrega",
+  "version": "1.0.0",
+  "description": "Integração Cardápio Web ↔ 99 Entrega (Vai Um Açaí)",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --no-warnings src/server.js",
+    "test": "node --no-warnings --test test/*.test.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
