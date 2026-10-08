@@ -149,6 +149,13 @@ if (require.main === module) {
   bootLegacyStores();
   buildApp().listen(config.port, () => log.info('boot', `Rodando na porta ${config.port} (${config.baseUrl})`));
   poller.startLoops();
+  if (config.n99Ready()) {
+    n99.ping()
+      .then(() => log.info('boot', `Credenciais da 99 válidas (${config.n99.apiBase})`))
+      .catch((e) => log.error('boot', `Credenciais da 99 recusadas: ${e.message}`));
+  } else {
+    log.warn('boot', 'Credenciais da 99 não configuradas: nenhuma corrida será chamada');
+  }
 }
 
 module.exports = { buildApp, bootLegacyStores };

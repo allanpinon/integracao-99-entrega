@@ -76,4 +76,4 @@ const CANCEL_REASON = {
   NOT_NEEDED: 410018,
 };
 
-module.exports = { estimate, create, cancel, detail, verifySignature, N99Error, CANCEL_REASON, _reset: () => { cached = null; } };
+module.exports = { ping: token, estimate, create, cancel, detail, verifySignature, N99Error, CANCEL_REASON, _reset: () => { cached = null; } };
