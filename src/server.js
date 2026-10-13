@@ -99,6 +99,7 @@ function painel() {
       <td style="color:${COLOR[j.status] || 'inherit'}">${esc(STATUS_PT[j.status] || j.status)}</td>
       <td>${brl(j.final_fee_cents ?? j.quoted_fee_cents)}</td>
       <td>${j.distance_m ? `${(j.distance_m / 1000).toFixed(1).replace('.', ',')} km` : '—'}</td>
+      <td>${j.weight_kg != null ? `${String(j.weight_kg).replace('.', ',')} kg` : '—'}${j.package_weight ? ` <span class="t">(faixa ${esc(j.package_weight.replace('kg', ''))} kg)</span>` : ''}</td>
       <td>${esc(j.n99_order_id || '—')}</td>
       <td class="m">${esc(j.error && !String(j.error).startsWith('incerto') ? j.error : '')}</td>
     </tr>`).join('');
@@ -119,11 +120,11 @@ function painel() {
   th,td{padding:8px 10px;border-bottom:1px solid #e8e6df;text-align:left;font-size:14px;white-space:nowrap}
   th{font-weight:500;color:#5f5e5a} td.m{white-space:normal;color:#5f5e5a;font-size:13px}
   .box{background:#faeeda;border:1px solid #ef9f27;border-radius:8px;padding:12px;margin-bottom:12px}
-  .wrap{overflow-x:auto}
+  .wrap{overflow-x:auto} .t{color:#888780;font-size:12px}
 </style>
 <h2>Corridas 99 Entrega</h2>${setup}
-<div class="wrap"><table><tr><th>Hora</th><th>Loja</th><th>Pedido</th><th>Status</th><th>Taxa</th><th>Distância</th><th>Corrida 99</th><th>Observação</th></tr>
-${rows || '<tr><td colspan="8">Nenhuma corrida ainda.</td></tr>'}</table></div>`;
+<div class="wrap"><table><tr><th>Hora</th><th>Loja</th><th>Pedido</th><th>Status</th><th>Taxa</th><th>Distância</th><th>Peso est.</th><th>Corrida 99</th><th>Observação</th></tr>
+${rows || '<tr><td colspan="9">Nenhuma corrida ainda.</td></tr>'}</table></div>`;
 }
 
 function page(title, body) {

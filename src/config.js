@@ -35,7 +35,8 @@ const config = {
     webhookKey: env.N99_WEBHOOK_KEY || '',
     vehicleType: env.N99_VEHICLE_TYPE || 'entrega_moto',
     packageType: env.N99_PACKAGE_TYPE || 'food',
-    packageWeight: env.N99_PACKAGE_WEIGHT || '5kg',
+    // 'auto' = estima pelo conteúdo do pedido; ou faixa fixa: 1kg | 5kg | 10kg | 20kg | 30kg
+    packageWeight: env.N99_PACKAGE_WEIGHT || 'auto',
     needPickupCode: (env.N99_NEED_PICKUP_CODE || 'false') === 'true',
     needDropoffCode: (env.N99_NEED_DROPOFF_CODE || 'false') === 'true',
     returnType: Number(env.N99_RETURN_TYPE || 2),

@@ -59,6 +59,8 @@ function open(file) {
   for (const sql of [
     `ALTER TABLE installs ADD COLUMN auth_mode TEXT NOT NULL DEFAULT 'oauth'`,
     `ALTER TABLE jobs ADD COLUMN rearm INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE jobs ADD COLUMN weight_kg REAL`,
+    `ALTER TABLE jobs ADD COLUMN package_weight TEXT`,
   ]) {
     try { db.exec(sql); } catch { /* coluna já existe */ }
   }

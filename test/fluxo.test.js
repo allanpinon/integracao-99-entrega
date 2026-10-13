@@ -321,3 +321,18 @@ test('legado: recusado por pagamento, loja marca como pago → nova tentativa se
   assert.equal(retry.attempt, 2);
   assert.equal(retry.status, 'finding');
 });
+
+test('peso: estima pelos itens e escolhe a faixa da 99', async () => {
+  const w = require('../src/weight');
+  assert.equal(w.estimate({ items: [{ name: 'Açaí 300ml', quantity: 1, options: [{ name: 'Granola', quantity: 1 }] }] }).packageWeight, '1kg');
+  assert.equal(w.estimate({ items: [{ name: 'Açaí', quantity: 3, options: [{ name: '500ml', quantity: 1 }] }] }).packageWeight, '5kg');
+  assert.equal(w.estimate({ items: [{ name: 'Caixa 10L', quantity: 3, options: [] }] }).packageWeight, null);
+  assert.equal(w.sizeFromName('1 lanche'), null);
+
+  order(301, { driver_id: 99, items: [{ name: 'Açaí 500ml', quantity: 1, kind: 'regular_item', status: 'waiting', options: [] }] });
+  await poller.pollAll();
+  const job = db.jobs.latestForOrder(1, 301);
+  assert.equal(job.package_weight, '1kg');
+  const create = calls.filter((c) => c.api === '99' && c.path === '/v2/order/create').at(-1);
+  assert.equal(create.body.package_info.package_weight, '1kg', 'faixa enviada à 99');
+});

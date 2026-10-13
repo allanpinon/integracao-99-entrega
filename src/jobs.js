@@ -4,6 +4,7 @@ const cw = require('./cw');
 const n99 = require('./n99');
 const rules = require('./rules');
 const log = require('./log');
+const weight = require('./weight');
 
 const TERMINAL = ['done', 'failed', 'canceled', 'rejected'];
 const locks = new Set();
@@ -61,6 +62,22 @@ async function start(install, order) {
       return db.jobs.byId(job.id);
     }
 
+    // Faixa de peso da 99: estimada pelos itens (N99_PACKAGE_WEIGHT=auto) ou fixa
+    let packageWeight = config.n99.packageWeight;
+    if (packageWeight === 'auto') {
+      const w = weight.estimate(order);
+      db.jobs.update(job.id, { weight_kg: w.kg, package_weight: w.packageWeight });
+      log.info('peso', `${tag}: ${w.kg} kg → faixa ${w.packageWeight || 'acima de 30 kg'} | ${w.trail.join(' ; ')}`);
+      if (!w.packageWeight) {
+        db.jobs.update(job.id, { status: 'rejected', error: `peso estimado ${w.kg} kg acima do limite da moto (30 kg)` });
+        await safe(`${tag} remover entregador`, () => cw.removeDriver(install.merchant_id, order.id));
+        return db.jobs.byId(job.id);
+      }
+      packageWeight = w.packageWeight;
+    } else {
+      db.jobs.update(job.id, { package_weight: packageWeight });
+    }
+
     try {
       const pickup_info = rules.pickupInfo(order.display_id);
       const dropoff_info = await rules.dropoffInfo(order);
@@ -81,7 +98,7 @@ async function start(install, order) {
         ...base,
         pickup_info,
         dropoff_info,
-        package_info: { package_type: config.n99.packageType, package_weight: config.n99.packageWeight },
+        package_info: { package_type: config.n99.packageType, package_weight: packageWeight },
         estimate_id: est.id,
         need_pickup_code: config.n99.needPickupCode,
         need_dropoff_code: config.n99.needDropoffCode,
