@@ -197,6 +197,8 @@ test('loja remove o "99 Entrega" antes da coleta: cancela na 99', async () => {
   assert.equal(job.status, 'finding');
   cwOrders.get(3).driver_id = 7; // trocou para o Juan
   await poller.pollAll();
+  assert.equal(db.jobs.byId(job.id).status, 'finding', '1ª leitura só confirma');
+  await poller.pollAll();
   assert.equal(db.jobs.byId(job.id).status, 'canceled');
   assert.equal(n99Orders.get(job.external_id).status, 'canceled');
 });
@@ -206,6 +208,7 @@ test('pedido cancelado no CW: cancela na 99', async () => {
   await poller.pollAll();
   const job = db.jobs.latestForOrder(1, 4);
   cwOrders.get(4).status = 'canceled';
+  await poller.pollAll();
   await poller.pollAll();
   assert.equal(db.jobs.byId(job.id).status, 'canceled');
 });

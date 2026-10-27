@@ -10,6 +10,20 @@ const ACTIVE_FOR_CANCEL = ['creating', 'finding', 'waiting'];
 const driversSeen = new Map(); // merchantId -> Map(driverId -> { display_id, at })
 const lastDiag = new Map();
 const warnedNoCreds = new Set();
+// Cancelamento só após 2 leituras seguidas sem o "99 Entrega" (evita falso positivo do CW)
+const cancelVotes = new Map(); // jobId -> leituras consecutivas
+
+async function maybeCancel(job, why, order) {
+  const n = (cancelVotes.get(job.id) || 0) + 1;
+  cancelVotes.set(job.id, n);
+  const seenTxt = `visto no CW: status=${order.status}, entregador=${order.driver_id ?? 'nenhum'}`;
+  if (n < 2) {
+    log.warn('poller', `${job.external_id}: ${why} (${seenTxt}). Confirmando na próxima leitura antes de cancelar.`);
+    return;
+  }
+  cancelVotes.delete(job.id);
+  await jobs.cancelByStore(job, `${why} (${seenTxt})`);
+}
 const lastPoll = new Map();    // merchantId -> resumo do último ciclo (diagnóstico)
 
 function noteDriver(merchantId, order) {
@@ -58,7 +72,8 @@ async function pollMerchant(install) {
     summary.orders.push({ id: order.id, display_id: order.display_id, status: order.status,
       driver_id: order.driver_id ?? null, delivered_by: order.delivered_by ?? null });
     if (!install.driver99_id) continue; // modo legado ainda sem o id do entregador 99
-    const is99 = order.driver_id && order.driver_id === install.driver99_id;
+    const is99 = order.driver_id != null && Number(order.driver_id) === Number(install.driver99_id);
+    if (is99 && job) cancelVotes.delete(job.id);
 
     // Depois de falha/recusa, libera nova tentativa quando a loja mexe no pedido:
     // troca o entregador, ou altera o pedido (ex.: marca o pagamento como pago)
@@ -79,7 +94,7 @@ async function pollMerchant(install) {
       log.info('poller', `Pedido #${order.display_id}: "${config.cw.driverName}" atribuído. Chamando motoboy.`);
       await jobs.start(install, order);
     } else if (!is99 && jobActive && ACTIVE_FOR_CANCEL.includes(job.status)) {
-      await jobs.cancelByStore(job, 'loja removeu o entregador 99 no CW');
+      await maybeCancel(job, 'loja removeu o entregador 99 no CW', order);
     }
   }
 
@@ -99,9 +114,11 @@ async function pollMerchant(install) {
     try {
       const order = await cw.getOrder(install.merchant_id, job.cw_order_id);
       if (['canceled', 'canceling'].includes(order.status)) {
-        await jobs.cancelByStore(job, 'pedido cancelado no CW');
-      } else if (order.driver_id !== install.driver99_id) {
-        await jobs.cancelByStore(job, 'loja removeu o entregador 99 no CW');
+        await maybeCancel(job, 'pedido cancelado no CW', order);
+      } else if (Number(order.driver_id) !== Number(install.driver99_id)) {
+        await maybeCancel(job, 'loja removeu o entregador 99 no CW', order);
+      } else {
+        cancelVotes.delete(job.id);
       }
     } catch (e) {
       log.warn('poller', `verificação do pedido ${job.cw_order_id}: ${e.message}`);
