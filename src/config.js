@@ -40,6 +40,8 @@ const config = {
     needPickupCode: (env.N99_NEED_PICKUP_CODE || 'false') === 'true',
     needDropoffCode: (env.N99_NEED_DROPOFF_CODE || 'false') === 'true',
     returnType: Number(env.N99_RETURN_TYPE || 2),
+    // Confirmação da devolução na loja (só com N99_RETURN_TYPE=1): 'code' (código de 4 dígitos) ou 'photo'
+    returnHandover: (env.N99_RETURN_HANDOVER || 'photo').toLowerCase(),
     reconcileIntervalMs: Number(env.N99_RECONCILE_INTERVAL_MS || 60000),
   },
 

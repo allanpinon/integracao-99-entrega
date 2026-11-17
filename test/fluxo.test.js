@@ -65,7 +65,7 @@ const n99Server = http.createServer(async (req, res) => {
     assert.match(b.dropoff_info.phone, /^\d{11}$/);
     assert.equal(b.pickup_info.structured_address.cep, '04203-052');
     const order_id = `880${n99Orders.size + 1}`;
-    n99Orders.set(b.external_order_id, { status: 'finding', order_id, fee: feeCents });
+    n99Orders.set(b.external_order_id, { status: 'finding', order_id, fee: feeCents, handover: b.return_handover_method, returnType: b.return_type });
     return json(res, 200, { errno: 0, data: { order_id, external_order_id: b.external_order_id } });
   }
   if (p === '/v2/order/cancel') {
@@ -79,7 +79,7 @@ const n99Server = http.createServer(async (req, res) => {
     const ext = url.searchParams.get('external_order_id');
     const o = n99Orders.get(ext);
     if (!o) return json(res, 200, { errno: 6201, errmsg: 'not exist' });
-    return json(res, 200, { errno: 0, data: { order_id: o.order_id, new_order_id: '', external_order_id: ext, status: o.status, price_info: { fee: o.fee, currency: 'R$' } } });
+    return json(res, 200, { errno: 0, data: { order_id: o.order_id, new_order_id: '', external_order_id: ext, status: o.status, price_info: { fee: o.fee, currency: 'R$' }, verify_info: { return_handover_code: o.returnCode || '' } } });
   }
   json(res, 404, {});
 });
@@ -338,4 +338,25 @@ test('peso: estima pelos itens e escolhe a faixa da 99', async () => {
   assert.equal(job.package_weight, '1kg');
   const create = calls.filter((c) => c.api === '99' && c.path === '/v2/order/create').at(-1);
   assert.equal(create.body.package_info.package_weight, '1kg', 'faixa enviada à 99');
+});
+
+test('devolução por código: envia método 3 e mostra o código no painel', async () => {
+  const config = require('../src/config');
+  config.n99.returnType = 1;
+  config.n99.returnHandover = 'code';
+  process.env.PAINEL_TOKEN = 'p';
+  config.painelToken = 'p';
+  order(401, { driver_id: 99 });
+  await poller.pollAll();
+  const job = db.jobs.latestForOrder(1, 401);
+  const o = n99Orders.get(job.external_id);
+  assert.equal(o.returnType, 1);
+  assert.equal(o.handover, 3, 'método de devolução = código');
+  o.status = 'sendback';
+  o.returnCode = '4821';
+  await poller.reconcileAll();
+  assert.equal(db.jobs.byId(job.id).return_code, '4821');
+  const html = await (await fetch(`http://127.0.0.1:${appPort}/painel?token=p`)).text();
+  assert.match(html, /4821/);
+  assert.match(html, /voltando para a loja/);
 });

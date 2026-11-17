@@ -102,7 +102,8 @@ async function start(install, order) {
         estimate_id: est.id,
         need_pickup_code: config.n99.needPickupCode,
         need_dropoff_code: config.n99.needDropoffCode,
-        return_handover_method: config.n99.returnType === 1 ? 2 : 1,
+        // 1 = sem verificação (descarte) | 2 = foto | 3 = código informado pela loja ao motoboy
+        return_handover_method: config.n99.returnType === 1 ? (config.n99.returnHandover === 'code' ? 3 : 2) : 1,
       });
 
       let created;
@@ -186,6 +187,11 @@ async function sync(job) {
     }
 
     const patch = { n99_status: d.status, n99_order_id: d.new_order_id || d.order_id };
+    const returnCode = d.verify_info?.return_handover_code;
+    if (returnCode && returnCode !== j.return_code) {
+      patch.return_code = returnCode;
+      log.info('jobs', `${j.external_id}: código de devolução ${returnCode} (pedido #${j.display_id})`);
+    }
     if (j.status === 'creating') {
       patch.status = 'finding';
       patch.quoted_fee_cents = cents(d.price_info?.fee);

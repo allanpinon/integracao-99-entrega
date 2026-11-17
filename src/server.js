@@ -101,7 +101,7 @@ function painel() {
       <td>${j.distance_m ? `${(j.distance_m / 1000).toFixed(1).replace('.', ',')} km` : '—'}</td>
       <td>${j.weight_kg != null ? `${String(j.weight_kg).replace('.', ',')} kg` : '—'}${j.package_weight ? ` <span class="t">(faixa ${esc(j.package_weight.replace('kg', ''))} kg)</span>` : ''}</td>
       <td>${esc(j.n99_order_id || '—')}</td>
-      <td class="m">${esc(j.error && !String(j.error).startsWith('incerto') ? j.error : '')}</td>
+      <td class="m">${j.return_code && j.status === 'sendback' ? `<b class="rc">Código de devolução: ${esc(j.return_code)}</b> ` : ''}${esc(j.error && !String(j.error).startsWith('incerto') ? j.error : '')}</td>
     </tr>`).join('');
 
   const setup = installs.filter((i) => !i.driver99_id).map((i) => {
@@ -112,6 +112,11 @@ function painel() {
       <ul>${seen || '<li>nenhum entregador visto ainda</li>'}</ul></div>`;
   }).join('');
 
+  const returns = db.jobs.active().filter((j) => j.status === 'sendback').map((j) => `
+    <div class="ret"><b>Pedido #${esc(j.display_id)} voltando para a loja.</b>
+    ${j.return_code ? `Informe ao motoboy o código <span class="big">${esc(j.return_code)}</span> ao receber o pedido.`
+      : 'Aguardando a 99 gerar o código de devolução.'}</div>`).join('');
+
   return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="refresh" content="15"><title>Corridas 99 Entrega</title>
 <style>
@@ -121,8 +126,10 @@ function painel() {
   th{font-weight:500;color:#5f5e5a} td.m{white-space:normal;color:#5f5e5a;font-size:13px}
   .box{background:#faeeda;border:1px solid #ef9f27;border-radius:8px;padding:12px;margin-bottom:12px}
   .wrap{overflow-x:auto} .t{color:#888780;font-size:12px}
+  .ret{background:#fcebeb;border:1px solid #e24b4a;border-radius:8px;padding:12px;margin-bottom:12px;color:#791f1f}
+  .big{font-size:22px;font-weight:600;letter-spacing:4px;margin:0 4px} .rc{color:#791f1f}
 </style>
-<h2>Corridas 99 Entrega</h2>${setup}
+<h2>Corridas 99 Entrega</h2>${setup}${returns}
 <div class="wrap"><table><tr><th>Hora</th><th>Loja</th><th>Pedido</th><th>Status</th><th>Taxa</th><th>Distância</th><th>Peso est.</th><th>Corrida 99</th><th>Observação</th></tr>
 ${rows || '<tr><td colspan="9">Nenhuma corrida ainda.</td></tr>'}</table></div>`;
 }
