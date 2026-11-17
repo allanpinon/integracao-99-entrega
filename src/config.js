@@ -71,7 +71,10 @@ const config = {
 // Lojas no modo token legado (API Key do Portal), sem app OAuth.
 // Formato: "codigoLoja:token:idEntregador99,codigoLoja2:token2:idEntregador99"
 // O id do entregador pode ficar vazio no início ("12493:token:"); o painel ajuda a descobrir.
-config.legacyStores = (env.CW_LEGACY_STORES || '')
+// Aceita também CW_LEGACY_STORES_2, CW_LEGACY_STORES_3... (uma loja por variável, sem tocar nas outras)
+const legacyRaw = [env.CW_LEGACY_STORES, ...Object.keys(env).filter((k) => /^CW_LEGACY_STORES_\d+$/.test(k)).sort().map((k) => env[k])]
+  .filter(Boolean).join(',');
+config.legacyStores = legacyRaw
   .split(',').map((s) => s.trim()).filter(Boolean)
   .map((s) => {
     const [merchantId, apiKey, driverId] = s.split(':').map((x) => (x || '').trim());
